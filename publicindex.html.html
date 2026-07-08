@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SiteVitals — Website health scanner</title>
+<style>
+  :root {
+    --bg: #0E1416;
+    --panel: #141C1F;
+    --line: #253034;
+    --text: #EDEFF0;
+    --text-dim: #8A9599;
+    --text-faint: #5A6468;
+    --teal: #1D9E75;
+    --teal-bg: #12241D;
+    --teal-text: #5DCAA5;
+    --amber: #BA7517;
+    --amber-bg: #241C0F;
+    --amber-text: #EF9F27;
+    --red: #A32D2D;
+    --red-bg: #251313;
+    --red-text: #F09595;
+    --mono: 'JetBrains Mono', 'Courier New', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); padding: 40px 20px 80px; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .brand-mark { width: 28px; height: 28px; border-radius: 6px; background: var(--teal-bg); border: 1px solid var(--teal); display: flex; align-items: center; justify-content: center; font-family: var(--mono); color: var(--teal-text); font-size: 14px; font-weight: 700; }
+  h1 { font-family: var(--mono); font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
+  .tagline { color: var(--text-dim); font-size: 14px; margin: 6px 0 32px; }
+  .scan-bar { display: flex; gap: 8px; margin-bottom: 8px; }
+  input[type=text] { flex: 1; background: var(--panel); border: 1px solid var(--line); color: var(--text); font-family: var(--mono); font-size: 14px; padding: 12px 14px; border-radius: 8px; outline: none; }
+  input[type=text]:focus { border-color: var(--teal); }
+  input[type=text]::placeholder { color: var(--text-faint); }
+  button.scan-btn { background: var(--teal-bg); color: var(--teal-text); border: 1px solid var(--teal); font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.02em; padding: 12px 20px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+  button.scan-btn:hover { background: var(--teal); color: #06140F; }
+  button.scan-btn:disabled { opacity: 0.5; cursor: default; }
+  .hint { color: var(--text-faint); font-size: 12px; margin-bottom: 40px; }
+  #status { font-family: var(--mono); font-size: 13px; color: var(--text-dim); margin: -20px 0 24px; display: none; }
+  .scan-line { display: inline-block; width: 8px; height: 8px; background: var(--teal-text); border-radius: 50%; margin-right: 8px; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+  #results { display: none; }
+  .score-row { display: flex; align-items: center; gap: 20px; margin-bottom: 32px; }
+  .score-circle { width: 84px; height: 84px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; border: 3px solid var(--line); font-family: var(--mono); }
+  .score-circle .num { font-size: 26px; font-weight: 700; line-height: 1; }
+  .score-circle .lbl { font-size: 9px; color: var(--text-faint); margin-top: 2px; letter-spacing: 0.05em; }
+  .score-summary p { margin: 0 0 4px; font-size: 14px; color: var(--text-dim); }
+  .score-summary .target { font-family: var(--mono); color: var(--text); font-size: 13px; word-break: break-all; }
+  .meta-row { display: flex; gap: 16px; font-family: var(--mono); font-size: 12px; color: var(--text-faint); margin-top: 6px; }
+  .cat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 32px; }
+  .cat-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; text-align: center; }
+  .cat-card .n { font-family: var(--mono); font-size: 20px; font-weight: 700; }
+  .cat-card .l { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
+  .section-title { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin: 28px 0 12px; display: flex; align-items: center; gap: 8px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .issue { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; }
+  .issue-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .sev { font-family: var(--mono); font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.03em; }
+  .sev.critical { background: var(--red-bg); color: var(--red-text); border: 1px solid var(--red); }
+  .sev.warning { background: var(--amber-bg); color: var(--amber-text); border: 1px solid var(--amber); }
+  .sev.pass { background: var(--teal-bg); color: var(--teal-text); border: 1px solid var(--teal); }
+  .issue-title { font-size: 14px; font-weight: 600; }
+  .issue-desc { font-size: 13px; color: var(--text-dim); margin: 0 0 4px; line-height: 1.5; }
+  .issue-fix { font-size: 12px; color: var(--teal-text); margin: 0; }
+  .fix-bar { display: flex; justify-content: center; margin: 32px 0 8px; }
+  button.fix-btn { background: transparent; color: var(--teal-text); border: 1px solid var(--teal); font-family: var(--mono); font-size: 13px; padding: 12px 24px; border-radius: 8px; cursor: pointer; }
+  button.fix-btn:hover { background: var(--teal-bg); }
+  .fix-note { text-align: center; font-size: 11px; color: var(--text-faint); margin-top: 10px; }
+  .error-box { background: var(--red-bg); border: 1px solid var(--red); color: var(--red-text); padding: 14px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 24px; display: none; }
+  @media (max-width: 560px) { .cat-grid { grid-template-columns: repeat(2, 1fr); } .scan-bar { flex-direction: column; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><div class="brand-mark">SV</div><h1>sitevitals</h1></div>
+  <p class="tagline">Scans a live website's uptime, code, security, performance and SEO — then tells you exactly what to fix.</p>
+
+  <div class="scan-bar">
+    <input type="text" id="urlInput" placeholder="example.com" value="example.com">
+    <button class="scan-btn" id="scanBtn" onclick="runScan()">Scan site</button>
+  </div>
+  <p class="hint">Runs a full server-side scan — works on any public site, no browser restrictions.</p>
+
+  <div id="status"><span class="scan-line"></span><span id="statusText">Scanning...</span></div>
+  <div class="error-box" id="errorBox"></div>
+
+  <div id="results">
+    <div class="score-row">
+      <div class="score-circle" id="scoreCircle"><div class="num" id="scoreNum">–</div><div class="lbl">score</div></div>
+      <div class="score-summary">
+        <p>Scanned target</p>
+        <div class="target" id="targetLabel"></div>
+        <div class="meta-row" id="metaRow"></div>
+      </div>
+    </div>
+
+    <div class="cat-grid" id="catGrid"></div>
+    <div id="issuesContainer"></div>
+
+    <div class="fix-bar"><button class="fix-btn" id="downloadFixBtn" onclick="downloadFixed()">Download auto-fixed HTML</button></div>
+    <p class="fix-note">Fixes what it can directly in the code (alt text, meta tags). Server/uptime/security issues need action on your hosting side, and stay listed above.</p>
+  </div>
+</div>
+
+<script>
+let lastUrl = '';
+
+function setStatus(msg, show) {
+  document.getElementById('status').style.display = show ? 'block' : 'none';
+  document.getElementById('statusText').textContent = msg;
+}
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = msg;
+  box.style.display = msg ? 'block' : 'none';
+}
+
+async function runScan() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) { showError('Enter a URL to scan.'); return; }
+  showError('');
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('scanBtn').disabled = true;
+  setStatus('Fetching and analyzing site...', true);
+  lastUrl = url;
+
+  try {
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderResults(data);
+  } catch (e) {
+    showError('Scan failed: ' + e.message);
+  } finally {
+    document.getElementById('scanBtn').disabled = false;
+    setStatus('', false);
+  }
+}
+
+function renderResults(data) {
+  document.getElementById('targetLabel').textContent = data.url;
+  document.getElementById('metaRow').innerHTML =
+    (data.statusCode ? 'status ' + data.statusCode : 'unreachable') +
+    (data.responseTimeMs ? '  ·  ' + data.responseTimeMs + 'ms' : '');
+
+  const scoreCircle = document.getElementById('scoreCircle');
+  const scoreNum = document.getElementById('scoreNum');
+  scoreNum.textContent = data.score;
+  let color = '#1D9E75', textColor = '#5DCAA5';
+  if (data.score < 50) { color = '#A32D2D'; textColor = '#F09595'; }
+  else if (data.score < 80) { color = '#BA7517'; textColor = '#EF9F27'; }
+  scoreCircle.style.borderColor = color;
+  scoreNum.style.color = textColor;
+
+  const cats = [
+    { key: 'uptime', label: 'Uptime' },
+    { key: 'code', label: 'Code' },
+    { key: 'security', label: 'Security' },
+    { key: 'performance', label: 'Performance' },
+    { key: 'seo', label: 'SEO' }
+  ];
+  const catGrid = document.getElementById('catGrid');
+  catGrid.innerHTML = cats.map(c => {
+    const catIssues = data.issues.filter(i => i.category === c.key);
+    const bad = catIssues.filter(i => i.severity !== 'pass').length;
+    const hasCritical = catIssues.some(i => i.severity === 'critical');
+    const col = bad === 0 ? '#5DCAA5' : (hasCritical ? '#F09595' : '#EF9F27');
+    return '<div class="cat-card"><div class="n" style="color:' + col + '">' + bad + '</div><div class="l">' + c.label + '</div></div>';
+  }).join('');
+
+  const container = document.getElementById('issuesContainer');
+  let html = '';
+  cats.forEach(c => {
+    const catIssues = data.issues.filter(i => i.category === c.key);
+    if (catIssues.length === 0) return;
+    html += '<div class="section-title">' + c.label + '</div>';
+    catIssues.forEach(i => {
+      html += '<div class="issue">';
+      html += '<div class="issue-top"><span class="sev ' + i.severity + '">' + i.severity + '</span><span class="issue-title">' + i.title + '</span></div>';
+      html += '<p class="issue-desc">' + i.desc + '</p>';
+      if (i.fix) html += '<p class="issue-fix">Fix: ' + i.fix + '</p>';
+      html += '</div>';
+    });
+  });
+  container.innerHTML = html;
+  document.getElementById('results').style.display = 'block';
+}
+
+async function downloadFixed() {
+  if (!lastUrl) return;
+  try {
+    const res = await fetch('/api/fix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: lastUrl })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Fix failed');
+    }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'fixed-site.html';
+    a.click();
+  } catch (e) {
+    showError(e.message);
+  }
+}
+</script>
+</body>
+</html>
